@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PC Repair Hub Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+    <style>
+        :root { font-family: 'Inter', sans-serif; }
+        .bg-primary { background-color: #1f2937; }
+        .text-primary { color: #3b82f6; }
+        .border-primary { border-color: #3b82f6; }
+        .activity-feed::-webkit-scrollbar { width: 4px; }
+        .activity-feed::-webkit-scrollbar-thumb { background: #60a5fa; border-radius: 2px; }
+        .activity-feed { scrollbar-width: thin; scrollbar-color: #60a5fa transparent; }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .spinner {
+            display: inline-block;
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 3px solid #60a5fa;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex flex-col">
+    
+    <div id="loading-screen" class="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
+        <div class="spinner border-blue-500 border-t-blue-200"></div>
+        <p class="mt-4 text-gray-700 font-medium">Loading PC Repair Hub...</p>
+        <p id="auth-status" class="mt-1 text-sm text-yellow-500">Checking authentication...</p>
+    </div>
+
+    <div id="main-content" class="hidden flex-1 flex flex-col">
+        
+        <header class="bg-white shadow-md z-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="ph-gear-six-fill text-2xl text-primary"></i>
+                    <h1 class="text-xl font-extrabold text-gray-900">PC Repair Hub</h1>
+                </div>
+                <nav class="flex space-x-4">
+                    <a href="dashboard.html" class="nav-button font-semibold text-primary border-b-2 border-primary pb-1 transition duration-150">
+                        <i class="ph-gauge-fill mr-1"></i> Dashboard
+                    </a>
+                    <a href="new_service_order.html" class="nav-button font-medium text-gray-500 hover:text-primary transition duration-150">
+                        <i class="ph-plus-circle-fill mr-1"></i> New Service Order
+                    </a>
+                </nav>
+                <div class="flex items-center space-x-4">
+                    <div class="text-xs text-gray-500 flex items-center">
+                        <i class="ph-user-circle-fill mr-1 text-lg"></i>
+                        <span id="user-display">Loading...</span>
+                    </div>
+                    <button id="logout-btn" class="text-sm text-red-600 hover:text-red-800 font-medium transition-colors">
+                        <i class="ph-sign-out-fill mr-1"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
+            <div id="dashboard-view">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-primary transition hover:shadow-xl">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 uppercase">Total Open Orders</p>
+                                <div class="mt-2 text-3xl font-bold text-gray-900">
+                                    <span id="open-orders-count">0</span>
+                                </div>
+                            </div>
+                            <i class="ph-clipboard-text-fill text-4xl text-primary"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500 transition hover:shadow-xl">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 uppercase">Ready for Delivery</p>
+                                <div class="mt-2 text-3xl font-bold text-gray-900">
+                                    <span id="ready-count">0</span>
+                                </div>
+                            </div>
+                            <i class="ph-truck-fill text-4xl text-green-500"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-yellow-500 transition hover:shadow-xl">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 uppercase">Total Revenue</p>
+                                <div class="mt-2 text-3xl font-bold text-gray-900">
+                                    <span id="total-revenue">₹0</span>
+                                </div>
+                            </div>
+                            <i class="ph-currency-dollar-fill text-4xl text-yellow-500"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                            <i class="ph-list-checks-fill mr-2 text-primary"></i> Repair Tickets
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tickets-table-body" class="bg-white divide-y divide-gray-200">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                            <i class="ph-clock-fill mr-2 text-primary"></i> Recent Activity
+                        </h3>
+                        <div id="activity-feed" class="activity-feed h-64 overflow-y-auto space-y-3 text-sm">
+                            <p class="text-gray-400">Loading recent updates...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Global variables
+        let currentUser = null;
+        let allTickets = [];
+
+        // Service definitions (used for ticket display/metrics only)
+        const SERVICES = {
+            DIAG: { name: "System Diagnostic & Quote", cost: 999, time: '1 hr' },
+            OS_INST: { name: "Operating System Fresh Install", cost: 1999, time: '4 hr' },
+            VIRUS: { name: "Virus & Malware Removal", cost: 1499, time: '3 hr' },
+            DATA_REC: { name: "Data Recovery (Tier 1)", cost: 2999, time: '5 hr' },
+            SCREEN_REPAIR: { name: "Screen Replacement", cost: 3999, time: '2 hr' },
+            HARDWARE_UPGRADE: { name: "Hardware Upgrade", cost: 2499, time: '3 hr' },
+            PRINTER_REPAIR: { name: "Printer Repair & Maintenance", cost: 799, time: '1 hr' },
+            NETWORK_SETUP: { name: "Network Setup & Configuration", cost: 1299, time: '2 hr' },
+        };
+
+        // DOM Elements
+        const loadingScreen = document.getElementById('loading-screen');
+        const mainContent = document.getElementById('main-content');
+        const authStatus = document.getElementById('auth-status');
+        const userDisplay = document.getElementById('user-display');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        // Authentication check
+        function checkAuthentication() {
+            const userSession = localStorage.getItem('pcHubUser');
+            
+            if (!userSession) {
+                authStatus.textContent = 'Not authenticated. Redirecting to login...';
+                authStatus.className = 'mt-1 text-sm text-red-500';
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 1500);
+                return false;
+            }
+
+            try {
+                currentUser = JSON.parse(userSession);
+                authStatus.textContent = `Welcome, ${currentUser.name}!`;
+                authStatus.className = 'mt-1 text-sm text-green-500';
+                userDisplay.textContent = currentUser.name;
+                return true;
+            } catch (error) {
+                console.error('Error parsing user session:', error);
+                localStorage.removeItem('pcHubUser');
+                window.location.href = 'login.html';
+                return false;
+            }
+        }
+
+        // Initialize application
+        function initializeApp() {
+            if (!checkAuthentication()) return;
+
+            // Hide loading screen and show main content
+            setTimeout(() => {
+                loadingScreen.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+                
+                loadTickets();
+                setupEventListeners();
+            }, 1000);
+        }
+
+        // Event listeners
+        function setupEventListeners() {
+            logoutBtn.addEventListener('click', () => {
+                localStorage.removeItem('pcHubUser');
+                window.location.href = 'login.html';
+            });
+        }
+
+        // Load tickets from localStorage
+        function loadTickets() {
+            const storedTickets = localStorage.getItem('pcHubTickets');
+            allTickets = storedTickets ? JSON.parse(storedTickets) : [];
+            
+            // Add sample data if no tickets exist (from original index)
+            if (allTickets.length === 0) {
+                allTickets = [
+                    {
+                        id: 'TICKET-' + Date.now(),
+                        customerName: 'John Doe',
+                        customerEmail: 'john@example.com',
+                        customerPhone: '+91 98765 43210',
+                        deviceType: 'Laptop - Dell XPS 13',
+                        services: ['System Diagnostic & Quote'],
+                        status: 'New Order',
+                        totalCost: 999,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                        createdBy: currentUser.name
+                    },
+                    {
+                        id: 'TICKET-' + (Date.now() + 1),
+                        customerName: 'Jane Smith',
+                        customerEmail: 'jane@example.com',
+                        customerPhone: '+91 87654 32109',
+                        deviceType: 'Laptop - MacBook Pro',
+                        services: ['Virus & Malware Removal'],
+                        status: 'In Progress',
+                        totalCost: 1499,
+                        createdAt: new Date(Date.now() - 86400000).toISOString(),
+                        updatedAt: new Date().toISOString(),
+                        createdBy: currentUser.name
+                    }
+                ];
+                saveTickets();
+            }
+            
+            renderDashboardMetrics();
+            renderTicketsTable();
+            renderActivityFeed();
+        }
+
+        // Save tickets to localStorage
+        function saveTickets() {
+            localStorage.setItem('pcHubTickets', JSON.stringify(allTickets));
+        }
+
+        // Render dashboard metrics
+        function renderDashboardMetrics() {
+            const openOrders = allTickets.filter(t => t.status !== 'Ready for Delivery' && t.status !== 'Collected').length;
+            const readyForDelivery = allTickets.filter(t => t.status === 'Ready for Delivery').length;
+            const totalRevenue = allTickets
+                .filter(t => t.status === 'Collected')
+                .reduce((sum, ticket) => sum + (ticket.totalCost || 0), 0);
+
+            document.getElementById('open-orders-count').textContent = openOrders;
+            document.getElementById('ready-count').textContent = readyForDelivery;
+            document.getElementById('total-revenue').textContent = `₹${totalRevenue.toLocaleString('en-IN')}`;
+        }
+
+        // Render tickets table
+        function renderTicketsTable() {
+            const tbody = document.getElementById('tickets-table-body');
+            if (!tbody) return;
+
+            const sortedTickets = allTickets.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            tbody.innerHTML = sortedTickets.map(ticket => {
+                const statusColors = {
+                    'New Order': 'bg-blue-100 text-blue-800',
+                    'In Progress': 'bg-yellow-100 text-yellow-800',
+                    'Ready for Delivery': 'bg-green-100 text-green-800',
+                    'Collected': 'bg-gray-100 text-gray-800',
+                };
+
+                const orderId = ticket.id.substring(ticket.id.lastIndexOf('-') + 1, ticket.id.lastIndexOf('-') + 9);
+                const statusColor = statusColors[ticket.status] || 'bg-gray-100 text-gray-800';
+
+                return `
+                    <tr class="${ticket.status === 'Collected' ? 'opacity-50' : ''}">
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${orderId}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">${ticket.customerName}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">${ticket.services.join(', ')}</td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">
+                                ${ticket.status}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                            <select data-id="${ticket.id}" class="status-select p-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="New Order" ${ticket.status === 'New Order' ? 'selected' : ''}>New Order</option>
+                                <option value="In Progress" ${ticket.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                                <option value="Ready for Delivery" ${ticket.status === 'Ready for Delivery' ? 'selected' : ''}>Ready for Delivery</option>
+                                <option value="Collected" ${ticket.status === 'Collected' ? 'selected' : ''}>Collected</option>
+                            </select>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Add event listeners for status changes
+            tbody.querySelectorAll('.status-select').forEach(select => {
+                select.addEventListener('change', handleStatusChange);
+            });
+        }
+
+        // Handle status change
+        function handleStatusChange(event) {
+            const ticketId = event.target.dataset.id;
+            const newStatus = event.target.value;
+            
+            const ticketIndex = allTickets.findIndex(t => t.id === ticketId);
+            if (ticketIndex !== -1) {
+                allTickets[ticketIndex].status = newStatus;
+                allTickets[ticketIndex].updatedAt = new Date().toISOString();
+                allTickets[ticketIndex].lastUpdatedBy = currentUser.name;
+                
+                saveTickets();
+                renderDashboardMetrics();
+                renderTicketsTable();
+                renderActivityFeed();
+                
+                showNotification(`Ticket status updated to "${newStatus}"`, 'success');
+            }
+        }
+
+        // Render activity feed
+        function renderActivityFeed() {
+            const feedElement = document.getElementById('activity-feed');
+            if (!feedElement) return;
+
+            const recentActivity = allTickets
+                .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+                .slice(0, 10);
+
+            if (recentActivity.length === 0) {
+                feedElement.innerHTML = '<p class="text-gray-400">No recent activity.</p>';
+                return;
+            }
+
+            feedElement.innerHTML = recentActivity.map(ticket => {
+                const timeAgo = getTimeAgo(new Date(ticket.updatedAt));
+                const orderId = ticket.id.substring(ticket.id.lastIndexOf('-') + 1, ticket.id.lastIndexOf('-') + 6);
+                
+                return `
+                    <div class="p-3 bg-gray-50 rounded-lg border-l-3 border-primary">
+                        <p class="text-gray-800 font-medium">${ticket.customerName}</p>
+                        <p class="text-xs text-gray-600">Order #${orderId} • Status: ${ticket.status}</p>
+                        <p class="text-xs text-gray-500 mt-1">${timeAgo}</p>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Utility function to get time ago
+        function getTimeAgo(date) {
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            
+            if (diffInSeconds < 60) return 'Just now';
+            if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+            if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+            return `${Math.floor(diffInSeconds / 86400)} days ago`;
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-500 text-white' : 
+                type === 'error' ? 'bg-red-500 text-white' : 
+                'bg-blue-500 text-white'
+            }`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Initialize the application when page loads
+        window.addEventListener('load', initializeApp);
+    </script>
+</body>
+</html>

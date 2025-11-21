@@ -1,0 +1,16 @@
+:root { font-family: 'Inter', sans-serif; }
+.bg-primary { background-color: #1f2937; }
+.text-primary { color: #3b82f6; }
+.border-primary { border-color: #3b82f6; }
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.spinner {
+    display: inline-block;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 3px solid #60a5fa;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PC Repair Hub - New Service Order</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+    
+    <link rel="stylesheet" href="style.css"> 
+</head>
+<body class="min-h-screen bg-gray-50 flex flex-col">
+    
+    <div id="loading-screen" class="fixed inset-0 bg-white flex flex-col items-center justify-center z-50 hidden">
+        <div class="spinner border-blue-500 border-t-blue-200"></div>
+        <p class="mt-4 text-gray-700 font-medium">Loading Service Form...</p>
+        <p id="auth-status" class="mt-1 text-sm text-yellow-500">Checking authentication...</p>
+    </div>
+
+    <div id="main-content" class="flex-1 flex flex-col">
+        
+        <header class="bg-white shadow-md z-10">
+             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="ph-gear-six-fill text-2xl text-primary"></i>
+                    <h1 class="text-xl font-extrabold text-gray-900">PC Repair Hub</h1>
+                </div>
+                <nav class="flex space-x-4">
+                    <a href="dashboard.html" class="nav-button font-medium text-gray-500 hover:text-primary pb-1 transition duration-150">
+                        <i class="ph-gauge-fill mr-1"></i> Dashboard
+                    </a>
+                    <a href="new_service_order.html" class="nav-button font-semibold text-primary border-b-2 border-primary transition duration-150">
+                        <i class="ph-plus-circle-fill mr-1"></i> New Service Order
+                    </a>
+                </nav>
+                <div class="flex items-center space-x-4">
+                    <div class="text-xs text-gray-500 flex items-center">
+                        <i class="ph-user-circle-fill mr-1 text-lg"></i>
+                        <span id="user-display">Loading...</span>
+                    </div>
+                    <button id="logout-btn" class="text-sm text-red-600 hover:text-red-800 font-medium transition-colors">
+                        <i class="ph-sign-out-fill mr-1"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
+            <div id="new-order-view">
+                <div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6 border-b pb-2 flex items-center">
+                        <i class="ph-file-text-fill mr-2 text-primary"></i> Create New Service Order
+                    </h2>
+                    
+                    <form id="new-order-form" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2 space-y-6">
+                            
+                            <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                                <h3 class="text-lg font-semibold text-gray-700 flex items-center"><i class="ph-user-fill mr-2 text-blue-500"></i> Client Information</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
+                                        <input type="text" id="customerName" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Subrata Dutta">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number (Cell) *</label>
+                                        <input type="tel" id="customerPhone" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="+91 98765 43210">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Email Address (Optional)</label>
+                                    <input type="email" id="customerEmail" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="subrata.d07@example.com">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Address *</label>
+                                    <input type="text" id="customerAddress" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Street Address / Locality">
+                                </div>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">City *</label>
+                                        <input type="text" id="customerCity" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="City">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">State *</label>
+                                        <select id="customerState" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                            </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Zip/Pincode *</label>
+                                        <input type="text" id="customerZip" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Pincode">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                                <h3 class="text-lg font-semibold text-gray-700 flex items-center"><i class="ph-ticket-fill mr-2 text-blue-500"></i> Ticket / Assignment Details</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Assigned Engineer *</label>
+                                        <select id="assignedEngineer" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white mt-1">
+                                            </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                                <h3 class="text-lg font-semibold text-gray-700 flex items-center"><i class="ph-computer-tower-fill mr-2 text-blue-500"></i> System Detail</h3>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Equipment Type *</label>
+                                    <select id="deviceType" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                        </select>
+                                </div>
+                                <div id="otherDeviceDetails" class="hidden">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Specify Other Device *</label>
+                                    <input type="text" id="otherDeviceName" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., CCTV Camera, Network Router">
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Brand Name *</label>
+                                        <input type="text" id="deviceBrand" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., Dell, HP, Apple">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Model No. *</label>
+                                        <input type="text" id="deviceModelNo" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., XPS 13">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Serial No. (If Available)</label>
+                                        <input type="text" id="deviceSerialNo" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="S/N or Asset Tag">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Problem Reported as *</label>
+                                    <textarea id="issueDescription" required rows="4" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Describe the problem (e.g., won't turn on, broken screen, software issue)..."></textarea>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                                <h3 class="text-lg font-semibold text-gray-700 flex items-center"><i class="ph-plugs-fill mr-2 text-blue-500"></i> Accessories Received</h3>
+                                <p class="text-sm text-gray-600">Please check all items the customer is submitting with the equipment.</p>
+                                <div id="accessories-received" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="accessories" value="Processor" class="accessory-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                        <span>Processor</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="accessories" value="RAM" class="accessory-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                        <span>RAM</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="accessories" value="HDD/SSD" class="accessory-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                        <span>HDD/SSD</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="accessories" value="Graphics Card" class="accessory-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                        <span>Graphics Card</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="accessories" value="Battery" class="accessory-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                        <span>Battery</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="accessories" value="Adapter" class="accessory-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                        <span>Adapter</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="accessories" value="Power Cable" class="accessory-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                        <span>Power Cable</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="checkbox" name="accessories" value="Others (Specify)" id="otherAccessoriesCheckbox" class="accessory-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                        <span>Others (Specify)</span>
+                                    </label>
+                                </div>
+                                
+                                <div id="otherAccessoriesDetails" class="hidden">
+                                     <label class="block text-sm font-medium text-gray-700 mb-1">Specify Other Accessories (Separate items with a comma)</label>
+                                     <input type="text" id="otherAccessoriesName" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., Laptop Bag, Mouse, Headset">
+                                </div>
+
+                                <div class="pt-4 border-t">
+                                     <label class="block text-sm font-medium text-gray-700 mb-1">If Password any</label>
+                                     <input type="text" id="devicePassword" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Windows/BIOS/Admin Password">
+                                </div>
+                            </div>
+
+                            <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                                <h3 class="text-lg font-semibold text-gray-700 flex items-center"><i class="ph-list-checks-fill mr-2 text-blue-500"></i> Service Charges *</h3>
+                                
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead class="bg-gray-100">
+                                            <tr>
+                                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Service Description</th>
+                                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Rate (₹)</th>
+                                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Discount (%)</th>
+                                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total (₹)</th>
+                                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="line-items-body" class="bg-white divide-y divide-gray-200 text-sm">
+                                            </tbody>
+                                    </table>
+                                </div>
+                                
+                                <button type="button" id="add-service-btn" class="mt-4 w-full flex items-center justify-center p-2 border border-dashed border-blue-300 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium">
+                                    <i class="ph-plus-circle-fill mr-2"></i> Add Service Line Item
+                                </button>
+                            </div>
+                            
+                            <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                                <h3 class="text-lg font-semibold text-gray-700 flex items-center"><i class="ph-shield-check-fill mr-2 text-blue-500"></i> Data Backup Consent *</h3>
+                                <p class="text-xs text-red-600 mb-2 font-medium">We are not Responsible For: Any lose of Data/Please take data backup before handling over the Laptop/Desktop.</p>
+                                <div id="data-backup-consent" class="space-y-2">
+                                    <label class="flex items-center space-x-2">
+                                        <input type="radio" name="dataBackup" value="backed_up" required class="h-4 w-4 text-blue-600 border-gray-300">
+                                        <span>I have backed up my data</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="radio" name="dataBackup" value="no_backup_no_service" required class="h-4 w-4 text-blue-600 border-gray-300">
+                                        <span>I have not backed up my data and do not want it backed up.</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2">
+                                        <input type="radio" name="dataBackup" value="request_backup" required class="h-4 w-4 text-blue-600 border-gray-300">
+                                        <span>I would like my data backed up. (Note: Some service include this, cost may apply).</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                                <h3 class="text-lg font-semibold text-gray-700 flex items-center"><i class="ph-calendar-check-fill mr-2 text-blue-500"></i> Warranty Info & Delivery</h3>
+                                <div class="flex items-center space-x-6">
+                                    <label class="block text-sm font-medium text-gray-700">Is your computer under warranty? *</label>
+                                    <div class="flex space-x-4">
+                                        <label class="flex items-center space-x-2">
+                                            <input type="radio" name="underWarranty" value="yes" required class="h-4 w-4 text-blue-600 border-gray-300">
+                                            <span>YES</span>
+                                        </label>
+                                        <label class="flex items-center space-x-2">
+                                            <input type="radio" name="underWarranty" value="no" checked required class="h-4 w-4 text-blue-600 border-gray-300">
+                                            <span>NO</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div id="warranty-details" class="grid grid-cols-2 gap-4 hidden border-t pt-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Warranty No.</label>
+                                        <input type="text" id="warrantyNo" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Warranty/Policy Number">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Warranty Exp. Date</label>
+                                        <input type="date" id="warrantyExpDate" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Delivery On (Tentative)</label>
+                                    <input type="date" id="expectedDeliveryDate" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                </div>
+                            </div>
+
+                            <button type="submit" id="submit-order-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-[1.01] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                <i class="ph-check-circle-fill mr-2"></i>
+                                Create Service Order
+                            </button>
+                        </div>
+
+                        <div class="bg-gray-50 p-6 rounded-xl h-fit sticky top-4">
+                            <h3 class="text-lg font-bold text-gray-900 mb-4">Order Summary</h3>
+                            <div id="order-summary" class="space-y-3">
+                                <div class="flex justify-between text-sm">
+                                    <span>Total Services:</span>
+                                    <span id="service-count">0</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span>Subtotal:</span>
+                                    <span id="sidebar-subtotal">₹0</span>
+                                </div>
+                                <div class="flex justify-between text-sm text-red-600">
+                                    <span>Discount:</span>
+                                    <span id="sidebar-discount">-₹0</span>
+                                </div>
+                                <div class="border-t pt-3">
+                                    <div class="flex justify-between text-xl font-bold">
+                                        <span>Grand Total:</span>
+                                        <span id="sidebar-grand-total" class="text-blue-600">₹0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="new_order.js"></script> 
+</body>
+</html>

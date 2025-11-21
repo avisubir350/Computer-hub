@@ -159,21 +159,6 @@
                     <div id="passwordMatchError" class="text-xs text-red-500 hidden">Passwords do not match</div>
                 </div>
 
-                <!-- Terms and Conditions -->
-                <div class="flex items-start space-x-2">
-                    <input 
-                        type="checkbox" 
-                        id="terms" 
-                        name="terms" 
-                        required 
-                        class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    >
-                    <label for="terms" class="text-sm text-gray-600">
-                        I agree to the <a href="#" class="text-indigo-600 hover:text-indigo-800 font-medium">Terms of Service</a> 
-                        and <a href="#" class="text-indigo-600 hover:text-indigo-800 font-medium">Privacy Policy</a>
-                    </label>
-                </div>
-
                 <!-- Register Button -->
                 <button 
                     type="submit" 
@@ -215,385 +200,389 @@
             </div>
         </div>
     </div>
+<script>
+    // --- API Configuration ---
+    // Make sure this matches your Go backend's location
+    const API_BASE_URL = 'http://localhost:8080/api/v1'; 
+    const REGISTER_ENDPOINT = `${API_BASE_URL}/auth/register`;
+    // -------------------------
 
-    <script>
-        // Form elements
-        const form = document.getElementById('registerForm');
-        const fullNameInput = document.getElementById('fullName');
-        const emailInput = document.getElementById('email');
-        const phoneInput = document.getElementById('phone');
-        const passwordInput = document.getElementById('password');
-        const confirmPasswordInput = document.getElementById('confirmPassword');
-        const termsCheckbox = document.getElementById('terms');
-        const registerBtn = document.getElementById('registerBtn');
-        const errorMessage = document.getElementById('errorMessage');
-        const successMessage = document.getElementById('successMessage');
-        const errorText = document.getElementById('errorText');
+    // Form elements
+    const form = document.getElementById('registerForm');
+    const fullNameInput = document.getElementById('fullName');
+    const emailInput = document.getElementById('email');
+    const phoneInput = document.getElementById('phone');
+    const passwordInput = document.getElementById('password');
+    const confirmPasswordInput = document.getElementById('confirmPassword');
+    // const termsCheckbox = document.getElementById('terms'); // NOTE: Checkbox not found in HTML
+    const registerBtn = document.getElementById('registerBtn');
+    const errorMessage = document.getElementById('errorMessage');
+    const successMessage = document.getElementById('successMessage');
+    const errorText = document.getElementById('errorText');
+    
+    // --- Validation and UI Toggle Logic (Unchanged) ---
+    // (togglePassword, toggleConfirmPassword, validateEmail, validatePhone, 
+    // calculatePasswordStrength, updatePasswordStrength, validatePasswordMatch, 
+    // real-time validation listeners, showError, resetButton)
+    // All these helper functions and listeners remain as you wrote them.
+    // ----------------------------------------------------
 
 
+    // Toggle password visibility
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const icon = this.querySelector('i');
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            icon.className = 'ph-eye-slash-fill text-lg';
+        } else {
+            passwordInput.type = 'password';
+            icon.className = 'ph-eye-fill text-lg';
+        }
+    });
 
-        // Toggle password visibility
-        document.getElementById('togglePassword').addEventListener('click', function() {
-            const icon = this.querySelector('i');
-            
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                icon.className = 'ph-eye-slash-fill text-lg';
-            } else {
-                passwordInput.type = 'password';
-                icon.className = 'ph-eye-fill text-lg';
-            }
+    // Toggle confirm password visibility
+    document.getElementById('toggleConfirmPassword').addEventListener('click', function() {
+        const icon = this.querySelector('i');
+        
+        if (confirmPasswordInput.type === 'password') {
+            confirmPasswordInput.type = 'text';
+            icon.className = 'ph-eye-slash-fill text-lg';
+        } else {
+            confirmPasswordInput.type = 'password';
+            icon.className = 'ph-eye-fill text-lg';
+        }
+    });
+
+    // Validation functions
+    function validateEmail(email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    }
+
+    function validatePhone(phone) {
+        // Remove all non-digit characters except +
+        const cleanPhone = phone.replace(/[\s\-\(\)\.]/g, '');
+        
+        // Indian phone number patterns
+        const indianPhonePatterns = [
+            /^(\+91|91)?[6-9]\d{9}$/, // Indian mobile: +91XXXXXXXXXX, 91XXXXXXXXXX, XXXXXXXXXX
+            /^(\+91|91)?\s?[6-9]\d{4}\s?\d{5}$/, // With spaces: +91 XXXXX XXXXX
+            /^(\+91|91)?\-?[6-9]\d{4}\-?\d{5}$/, // With dashes: +91-XXXXX-XXXXX
+        ];
+        
+        // Check if phone matches Indian mobile number patterns
+        // We allow cleanPhone.length to be 10 (plain number), 12 (+91XXXXXXXXXX without spaces) or 13 (+91 XXXXX XXXXX with space)
+        return indianPhonePatterns.some(pattern => pattern.test(cleanPhone)) && 
+               (cleanPhone.length === 10 || cleanPhone.length === 12 || cleanPhone.length === 13);
+    }
+
+    function calculatePasswordStrength(password) {
+        let strength = 0;
+        const requirements = {
+            length: password.length >= 8,
+            lowercase: /[a-z]/.test(password),
+            uppercase: /[A-Z]/.test(password),
+            numbers: /\d/.test(password),
+            special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+        };
+
+        // Calculate strength based on requirements met
+        Object.values(requirements).forEach(met => {
+            if (met) strength += 20;
         });
 
-        // Toggle confirm password visibility
-        document.getElementById('toggleConfirmPassword').addEventListener('click', function() {
-            const icon = this.querySelector('i');
-            
-            if (confirmPasswordInput.type === 'password') {
-                confirmPasswordInput.type = 'text';
-                icon.className = 'ph-eye-slash-fill text-lg';
-            } else {
-                confirmPasswordInput.type = 'password';
-                icon.className = 'ph-eye-fill text-lg';
-            }
-        });
+        return { strength, requirements };
+    }
 
-        // Validation functions
-        function validateEmail(email) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            return emailRegex.test(email);
+    function updatePasswordStrength(password) {
+        const { strength, requirements } = calculatePasswordStrength(password);
+        const strengthBar = document.getElementById('passwordStrength');
+        const requirementsText = document.getElementById('passwordRequirements');
+
+        // Update strength bar
+        strengthBar.style.width = strength + '%';
+        
+        if (strength < 40) {
+            strengthBar.className = 'password-strength bg-red-400';
+        } else if (strength < 80) {
+            strengthBar.className = 'password-strength bg-yellow-400';
+        } else {
+            strengthBar.className = 'password-strength bg-green-400';
         }
 
-        function validatePhone(phone) {
-            // Remove all non-digit characters except +
-            const cleanPhone = phone.replace(/[\s\-\(\)\.]/g, '');
-            
-            // Indian phone number patterns
-            const indianPhonePatterns = [
-                /^(\+91|91)?[6-9]\d{9}$/, // Indian mobile: +91XXXXXXXXXX, 91XXXXXXXXXX, XXXXXXXXXX
-                /^(\+91|91)?\s?[6-9]\d{4}\s?\d{5}$/, // With spaces: +91 XXXXX XXXXX
-                /^(\+91|91)?\-?[6-9]\d{4}\-?\d{5}$/, // With dashes: +91-XXXXX-XXXXX
-            ];
-            
-            // Check if phone matches Indian mobile number patterns
-            return indianPhonePatterns.some(pattern => pattern.test(cleanPhone)) && 
-                   (cleanPhone.length === 10 || cleanPhone.length === 12 || cleanPhone.length === 13);
+        // Update requirements text
+        const unmetRequirements = [];
+        if (!requirements.length) unmetRequirements.push('8+ characters');
+        if (!requirements.lowercase) unmetRequirements.push('lowercase letter');
+        if (!requirements.uppercase) unmetRequirements.push('uppercase letter');
+        if (!requirements.numbers) unmetRequirements.push('number');
+        if (!requirements.special) unmetRequirements.push('special character');
+
+        if (unmetRequirements.length === 0) {
+            requirementsText.textContent = 'Strong password!';
+            requirementsText.className = 'text-xs text-green-600';
+        } else {
+            requirementsText.textContent = `Missing: ${unmetRequirements.join(', ')}`;
+            requirementsText.className = 'text-xs text-gray-500';
         }
+    }
 
-        function calculatePasswordStrength(password) {
-            let strength = 0;
-            const requirements = {
-                length: password.length >= 8,
-                lowercase: /[a-z]/.test(password),
-                uppercase: /[A-Z]/.test(password),
-                numbers: /\d/.test(password),
-                special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
-            };
-
-            // Calculate strength based on requirements met
-            Object.values(requirements).forEach(met => {
-                if (met) strength += 20;
-            });
-
-            return { strength, requirements };
-        }
-
-        function updatePasswordStrength(password) {
-            const { strength, requirements } = calculatePasswordStrength(password);
-            const strengthBar = document.getElementById('passwordStrength');
-            const requirementsText = document.getElementById('passwordRequirements');
-
-            // Update strength bar
-            strengthBar.style.width = strength + '%';
-            
-            if (strength < 40) {
-                strengthBar.className = 'password-strength bg-red-400';
-            } else if (strength < 80) {
-                strengthBar.className = 'password-strength bg-yellow-400';
-            } else {
-                strengthBar.className = 'password-strength bg-green-400';
-            }
-
-            // Update requirements text
-            const unmetRequirements = [];
-            if (!requirements.length) unmetRequirements.push('8+ characters');
-            if (!requirements.lowercase) unmetRequirements.push('lowercase letter');
-            if (!requirements.uppercase) unmetRequirements.push('uppercase letter');
-            if (!requirements.numbers) unmetRequirements.push('number');
-            if (!requirements.special) unmetRequirements.push('special character');
-
-            if (unmetRequirements.length === 0) {
-                requirementsText.textContent = 'Strong password!';
-                requirementsText.className = 'text-xs text-green-600';
-            } else {
-                requirementsText.textContent = `Missing: ${unmetRequirements.join(', ')}`;
-                requirementsText.className = 'text-xs text-gray-500';
-            }
-        }
-
-        // Real-time validation
-        emailInput.addEventListener('input', function() {
-            const emailError = document.getElementById('emailError');
-            const isValid = validateEmail(this.value);
-            
-            if (this.value.length > 0) {
-                if (isValid) {
-                    this.classList.remove('border-red-300');
-                    this.classList.add('border-green-300');
-                    emailError.classList.add('hidden');
-                } else {
-                    this.classList.remove('border-green-300');
-                    this.classList.add('border-red-300');
-                    emailError.classList.remove('hidden');
-                }
-            } else {
-                this.classList.remove('border-red-300', 'border-green-300');
+    // Real-time validation
+    emailInput.addEventListener('input', function() {
+        const emailError = document.getElementById('emailError');
+        const isValid = validateEmail(this.value);
+        
+        if (this.value.length > 0) {
+            if (isValid) {
+                this.classList.remove('border-red-300');
+                this.classList.add('border-green-300');
                 emailError.classList.add('hidden');
+            } else {
+                this.classList.remove('border-green-300');
+                this.classList.add('border-red-300');
+                emailError.classList.remove('hidden');
             }
-        });
+        } else {
+            this.classList.remove('border-red-300', 'border-green-300');
+            emailError.classList.add('hidden');
+        }
+    });
 
-        phoneInput.addEventListener('input', function() {
-            const phoneError = document.getElementById('phoneError');
-            let value = this.value;
-            
-            // Auto-format Indian mobile numbers as user types
-            let cleaned = value.replace(/[^\d+]/g, '');
-            
-            // Handle +91 prefix
-            if (cleaned.startsWith('+91')) {
-                cleaned = cleaned.substring(3);
-                if (cleaned.length <= 10) {
-                    if (cleaned.length >= 5) {
-                        value = `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
-                    } else if (cleaned.length > 0) {
-                        value = `+91 ${cleaned}`;
-                    } else {
-                        value = '+91 ';
-                    }
-                }
-            } else if (cleaned.startsWith('91') && cleaned.length > 2) {
-                // Handle 91 prefix without +
-                cleaned = cleaned.substring(2);
-                if (cleaned.length <= 10) {
-                    if (cleaned.length >= 5) {
-                        value = `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
-                    } else if (cleaned.length > 0) {
-                        value = `+91 ${cleaned}`;
-                    }
-                }
-            } else {
-                // Handle direct 10-digit number
-                if (cleaned.length <= 10) {
-                    if (cleaned.length >= 5) {
-                        value = `${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
-                    } else {
-                        value = cleaned;
-                    }
+    phoneInput.addEventListener('input', function() {
+        const phoneError = document.getElementById('phoneError');
+        let value = this.value;
+        
+        // Auto-format Indian mobile numbers as user types
+        let cleaned = value.replace(/[^\d+]/g, '');
+        
+        // Handle +91 prefix
+        if (cleaned.startsWith('+91')) {
+            cleaned = cleaned.substring(3);
+            if (cleaned.length <= 10) {
+                if (cleaned.length >= 5) {
+                    value = `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
+                } else if (cleaned.length > 0) {
+                    value = `+91 ${cleaned}`;
+                } else {
+                    value = '+91 ';
                 }
             }
-            
-            this.value = value;
-            
-            const isValid = validatePhone(this.value);
-            
-            if (this.value.length > 0) {
-                if (isValid) {
-                    this.classList.remove('border-red-300');
-                    this.classList.add('border-green-300');
-                    phoneError.classList.add('hidden');
-                } else {
-                    this.classList.remove('border-green-300');
-                    this.classList.add('border-red-300');
-                    phoneError.classList.remove('hidden');
+        } else if (cleaned.startsWith('91') && cleaned.length > 2) {
+            // Handle 91 prefix without +
+            cleaned = cleaned.substring(2);
+            if (cleaned.length <= 10) {
+                if (cleaned.length >= 5) {
+                    value = `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
+                } else if (cleaned.length > 0) {
+                    value = `+91 ${cleaned}`;
                 }
-            } else {
-                this.classList.remove('border-red-300', 'border-green-300');
+            }
+        } else {
+            // Handle direct 10-digit number
+            if (cleaned.length <= 10) {
+                if (cleaned.length >= 5) {
+                    value = `${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
+                } else {
+                    value = cleaned;
+                }
+            }
+        }
+        
+        this.value = value;
+        
+        const isValid = validatePhone(this.value);
+        
+        if (this.value.length > 0) {
+            if (isValid) {
+                this.classList.remove('border-red-300');
+                this.classList.add('border-green-300');
                 phoneError.classList.add('hidden');
-            }
-        });
-
-        passwordInput.addEventListener('input', function() {
-            const password = this.value;
-            
-            if (password.length > 0) {
-                updatePasswordStrength(password);
-                
-                // Check if password meets minimum requirements
-                const { strength } = calculatePasswordStrength(password);
-                if (strength >= 40) {
-                    this.classList.remove('border-red-300');
-                    this.classList.add('border-green-300');
-                } else {
-                    this.classList.remove('border-green-300');
-                    this.classList.add('border-red-300');
-                }
             } else {
-                this.classList.remove('border-red-300', 'border-green-300');
-                document.getElementById('passwordStrength').style.width = '0%';
-                document.getElementById('passwordRequirements').textContent = 'Password must be at least 8 characters long';
+                this.classList.remove('border-green-300');
+                this.classList.add('border-red-300');
+                phoneError.classList.remove('hidden');
             }
+        } else {
+            this.classList.remove('border-red-300', 'border-green-300');
+            phoneError.classList.add('hidden');
+        }
+    });
 
-            // Revalidate confirm password if it has a value
-            if (confirmPasswordInput.value.length > 0) {
-                validatePasswordMatch();
-            }
-        });
-
-        function validatePasswordMatch() {
-            const password = passwordInput.value;
-            const confirmPassword = confirmPasswordInput.value;
-            const matchError = document.getElementById('passwordMatchError');
+    passwordInput.addEventListener('input', function() {
+        const password = this.value;
+        
+        if (password.length > 0) {
+            updatePasswordStrength(password);
             
-            if (confirmPassword.length > 0) {
-                if (password === confirmPassword) {
-                    confirmPasswordInput.classList.remove('border-red-300');
-                    confirmPasswordInput.classList.add('border-green-300');
-                    matchError.classList.add('hidden');
-                    return true;
-                } else {
-                    confirmPasswordInput.classList.remove('border-green-300');
-                    confirmPasswordInput.classList.add('border-red-300');
-                    matchError.classList.remove('hidden');
-                    return false;
-                }
+            // Check if password meets minimum requirements
+            const { strength } = calculatePasswordStrength(password);
+            if (strength >= 40) {
+                this.classList.remove('border-red-300');
+                this.classList.add('border-green-300');
             } else {
-                confirmPasswordInput.classList.remove('border-red-300', 'border-green-300');
+                this.classList.remove('border-green-300');
+                this.classList.add('border-red-300');
+            }
+        } else {
+            this.classList.remove('border-red-300', 'border-green-300');
+            document.getElementById('passwordStrength').style.width = '0%';
+            document.getElementById('passwordRequirements').textContent = 'Password must be at least 8 characters long';
+        }
+
+        // Revalidate confirm password if it has a value
+        if (confirmPasswordInput.value.length > 0) {
+            validatePasswordMatch();
+        }
+    });
+
+    function validatePasswordMatch() {
+        const password = passwordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
+        const matchError = document.getElementById('passwordMatchError');
+        
+        if (confirmPassword.length > 0) {
+            if (password === confirmPassword) {
+                confirmPasswordInput.classList.remove('border-red-300');
+                confirmPasswordInput.classList.add('border-green-300');
                 matchError.classList.add('hidden');
+                return true;
+            } else {
+                confirmPasswordInput.classList.remove('border-green-300');
+                confirmPasswordInput.classList.add('border-red-300');
+                matchError.classList.remove('hidden');
                 return false;
             }
+        } else {
+            confirmPasswordInput.classList.remove('border-red-300', 'border-green-300');
+            matchError.classList.add('hidden');
+            return false;
+        }
+    }
+
+    confirmPasswordInput.addEventListener('input', validatePasswordMatch);
+
+    // Form validation
+    function validateForm() {
+        const fullName = fullNameInput.value.trim();
+        const email = emailInput.value.trim();
+        const phone = phoneInput.value.trim();
+        const password = passwordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
+        // const terms = termsCheckbox.checked; // Disabled since checkbox is missing in HTML
+
+        const isEmailValid = validateEmail(email);
+        const isPhoneValid = validatePhone(phone);
+        const { strength } = calculatePasswordStrength(password);
+        const isPasswordStrong = strength >= 40;
+        const doPasswordsMatch = password === confirmPassword;
+
+        // Validation check (terms check removed)
+        const isValid = fullName && isEmailValid && isPhoneValid && 
+                       isPasswordStrong && doPasswordsMatch; // && terms;
+
+        registerBtn.disabled = !isValid;
+        return isValid;
+    }
+
+    // Add event listeners for form validation
+    [fullNameInput, emailInput, phoneInput, passwordInput, confirmPasswordInput].forEach(input => { // termsCheckbox removed
+        input.addEventListener('input', validateForm);
+        input.addEventListener('change', validateForm);
+    });
+
+    // Handle form submission (UPDATED LOGIC)
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const fullName = fullNameInput.value.trim();
+        const email = emailInput.value.trim();
+        const phone = phoneInput.value.trim();
+        const password = passwordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
+        // const terms = termsCheckbox.checked; // Disabled
+
+        // Hide previous messages
+        errorMessage.classList.add('hidden');
+        successMessage.classList.add('hidden');
+
+        // Final client-side validation check (without terms)
+        if (!validateForm()) {
+            showError('Please check all fields and create a strong password.');
+            return;
         }
 
-        confirmPasswordInput.addEventListener('input', validatePasswordMatch);
+        // Show loading state
+        registerBtn.innerHTML = '<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div> Creating account...';
+        registerBtn.disabled = true;
 
-        // Form validation
-        function validateForm() {
-            const fullName = fullNameInput.value.trim();
-            const email = emailInput.value.trim();
-            const phone = phoneInput.value.trim();
-            const password = passwordInput.value;
-            const confirmPassword = confirmPasswordInput.value;
-            const terms = termsCheckbox.checked;
+        const userData = {
+            full_name: fullName, // Matches Go struct tag
+            email: email,       // Matches Go struct tag
+            phone: phone,       // Matches Go struct tag
+            password: password  // Matches Go struct tag
+        };
 
-            const isEmailValid = validateEmail(email);
-            const isPhoneValid = validatePhone(phone);
-            const { strength } = calculatePasswordStrength(password);
-            const isPasswordStrong = strength >= 40;
-            const doPasswordsMatch = password === confirmPassword;
+        try {
+            const response = await fetch(REGISTER_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(userData)
+            });
 
-            const isValid = fullName && isEmailValid && isPhoneValid && 
-                           isPasswordStrong && doPasswordsMatch && terms;
+            const data = await response.json();
 
-            registerBtn.disabled = !isValid;
-            return isValid;
-        }
+            if (response.ok) { // HTTP Status 201 Created
+                // Show success message
+                successMessage.classList.remove('hidden');
+                console.log("Registration Success:", data);
+                
+                // Set flag for login page
+                localStorage.setItem('justRegistered', 'true');
+                
+                // Redirect to login after delay
+                setTimeout(() => {
+                    window.location.href = 'login.html?registered=true';
+                }, 2000);
 
-        // Add event listeners for form validation
-        [fullNameInput, emailInput, phoneInput, passwordInput, confirmPasswordInput, termsCheckbox].forEach(input => {
-            input.addEventListener('input', validateForm);
-            input.addEventListener('change', validateForm);
-        });
-
-        // Handle form submission
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const fullName = fullNameInput.value.trim();
-            const email = emailInput.value.trim();
-            const phone = phoneInput.value.trim();
-            const password = passwordInput.value;
-            const confirmPassword = confirmPasswordInput.value;
-            const terms = termsCheckbox.checked;
-
-            // Hide previous messages
-            errorMessage.classList.add('hidden');
-            successMessage.classList.add('hidden');
-
-            // Final validation
-            if (!fullName) {
-                showError('Please enter your full name.');
-                return;
-            }
-
-            if (!validateEmail(email)) {
-                showError('Please enter a valid email address.');
-                return;
-            }
-
-            if (!validatePhone(phone)) {
-                showError('Please enter a valid Indian mobile number.');
-                return;
-            }
-
-            const { strength } = calculatePasswordStrength(password);
-            if (strength < 40) {
-                showError('Please create a stronger password.');
-                return;
-            }
-
-            if (password !== confirmPassword) {
-                showError('Passwords do not match.');
-                return;
-            }
-
-            if (!terms) {
-                showError('Please accept the Terms of Service and Privacy Policy.');
-                return;
-            }
-
-            // Show loading state
-            registerBtn.innerHTML = '<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div> Creating account...';
-            registerBtn.disabled = true;
-
-            // Simulate registration process
-            setTimeout(() => {
-                // Check if email already exists
-                const existingUsers = JSON.parse(localStorage.getItem('pcHubUsers') || '[]');
-                const emailExists = existingUsers.some(user => user.email === email);
-
-                if (emailExists) {
-                    showError('An account with this email already exists.');
-                    resetButton();
-                } else {
-                    // Create new user
-                    const newUser = {
-                        id: Date.now().toString(),
-                        fullName: fullName,
-                        email: email,
-                        phone: phone,
-                        password: password, // In real app, this would be hashed
-                        createdAt: new Date().toISOString(),
-                        role: 'User'
-                    };
-
-                    existingUsers.push(newUser);
-                    localStorage.setItem('pcHubUsers', JSON.stringify(existingUsers));
-
-                    // Show success message
-                    successMessage.classList.remove('hidden');
-                    
-                    // Set flag for login page to show success message
-                    localStorage.setItem('justRegistered', 'true');
-                    
-                    // Redirect to login after delay
-                    setTimeout(() => {
-                        window.location.href = 'login.html?registered=true';
-                    }, 2000);
+            } else {
+                // Handle API errors (400, 409, 500)
+                let errorMsg = data.message || "An unknown error occurred during registration.";
+                
+                if (response.status === 409) { // Conflict: Email already registered
+                    errorMsg = "An account with this email already exists. Try signing in.";
+                } else if (response.status === 400) { // Bad Request: Missing fields/Invalid payload
+                    errorMsg = "Invalid input: " + errorMsg;
+                } else if (response.status === 500) {
+                    errorMsg = "Server error. Please try again later.";
                 }
-            }, 1500);
-        });
 
-        function showError(message) {
-            errorText.textContent = message;
-            errorMessage.classList.remove('hidden');
+                showError(errorMsg);
+                resetButton();
+            }
+
+        } catch (error) {
+            // Handle network failure (e.g., Go backend not running, CORS blocking)
+            console.error('Network Error:', error);
+            showError('Could not connect to the server. Is the Go backend running?');
+            resetButton();
         }
+    });
 
-        function resetButton() {
-            registerBtn.innerHTML = '<i class="ph-user-plus-fill mr-2"></i> Create Account';
-            registerBtn.disabled = false;
-        }
+    function showError(message) {
+        errorText.textContent = message;
+        errorMessage.classList.remove('hidden');
+    }
 
-        // Initial form validation
-        validateForm();
-    </script>
+    function resetButton() {
+        registerBtn.innerHTML = '<i class="ph-user-plus-fill mr-2"></i> Create Account';
+        registerBtn.disabled = false;
+    }
+
+    // Initial form validation
+    validateForm();
+</script>
 </body>
 </html>

@@ -96,10 +96,6 @@
 
                 <!-- Remember Me & Forgot Password -->
                 <div class="flex items-center justify-between text-sm">
-                    <label class="flex items-center">
-                        <input type="checkbox" id="remember" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                        <span class="ml-2 text-gray-600">Remember me</span>
-                    </label>
                     <a href="forgot-password.html" id="forgotPasswordLink" class="text-indigo-600 hover:text-indigo-800 font-medium transition-colors">Forgot password?</a>
                 </div>
 
@@ -143,18 +139,12 @@
                 </p>
             </div>
         </div>
-
-        <!-- Demo Credentials -->
-        <div class="mt-6 text-center">
-            <div class="glass-effect rounded-lg p-4 text-sm">
-                <p class="text-white font-medium mb-2">Demo Credentials:</p>
-                <p class="text-indigo-100">Email: admin@pchub.com</p>
-                <p class="text-indigo-100">Password: admin123</p>
-            </div>
-        </div>
     </div>
 
     <script>
+    const API_BASE_URL = 'http://localhost:8080/api/v1';
+    const LOGIN_ENDPOINT = `${API_BASE_URL}/auth/login`;
+
         // Toggle password visibility
         document.getElementById('togglePassword').addEventListener('click', function() {
             const passwordInput = document.getElementById('password');
@@ -170,7 +160,8 @@
         });
 
         // Handle form submission
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
+      // Handle form submission - UPDATED TO USE GO BACKEND
+        document.getElementById('loginForm').addEventListener('submit', async function(e) { // Note the 'async' keyword
             e.preventDefault();
             
             const email = document.getElementById('email').value.trim();
@@ -194,50 +185,34 @@
             // Show loading state
             loginBtn.innerHTML = '<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div> Signing in...';
             loginBtn.disabled = true;
+            
+            // --- API Call to Go Backend ---
+            const loginData = { email, password };
 
-            // Simulate authentication delay
-            setTimeout(() => {
-                let loginSuccessful = false;
-                let userInfo = null;
+            try {
+                const response = await fetch(LOGIN_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(loginData)
+                });
 
-                // Check demo admin credentials first
-                if (email === 'admin@pchub.com' && password === 'admin123') {
-                    loginSuccessful = true;
-                    userInfo = {
-                        email: email,
-                        name: 'Admin User',
-                        role: 'Administrator',
-                        loginTime: new Date().toISOString()
-                    };
-                } else {
-                    // Check registered users from localStorage
-                    const registeredUsers = JSON.parse(localStorage.getItem('pcHubUsers') || '[]');
-                    const user = registeredUsers.find(u => u.email === email && u.password === password);
+                const data = await response.json();
+
+                if (response.ok) { // Status 200 OK
+                    const userInfo = data.user;
                     
-                    if (user) {
-                        loginSuccessful = true;
-                        userInfo = {
-                            email: user.email,
-                            name: user.fullName,
-                            phone: user.phone,
-                            role: user.role || 'User',
-                            loginTime: new Date().toISOString(),
-                            userId: user.id
-                        };
-                    }
-                }
-
-                if (loginSuccessful) {
-                    // Store user session
+                    // Store user session (including the JWT token if needed)
                     localStorage.setItem('pcHubUser', JSON.stringify(userInfo));
+                    localStorage.setItem('pcHubToken', data.token); // Store the JWT
 
                     // Show success message with user name
-                    const successDiv = document.getElementById('successMessage');
-                    successDiv.innerHTML = `
+                    successMessage.innerHTML = `
                         <i class="ph-check-circle-fill mr-1"></i>
                         Welcome back, ${userInfo.name}! Login successful.
                     `;
-                    successDiv.classList.remove('hidden');
+                    successMessage.classList.remove('hidden');
                     
                     // Update button to show success
                     loginBtn.innerHTML = '<i class="ph-check-circle-fill mr-2"></i> Success! Redirecting...';
@@ -246,11 +221,19 @@
                     
                     // Redirect to dashboard
                     setTimeout(() => {
-                        window.location.href = 'index.html';
+                        window.location.href = 'dashboard.html';
                     }, 1500);
-                } else {
+
+                } else { // Handle non-200 responses (401, 500, etc.)
+                    let message = data.message || 'Authentication failed. Check credentials.';
+                    if (response.status === 401) {
+                        message = 'Invalid email or password.';
+                    } else if (response.status === 500) {
+                        message = 'Server error occurred during login.';
+                    }
+
                     // Show error message
-                    errorText.textContent = 'Invalid email or password. Please check your credentials and try again.';
+                    errorText.textContent = message;
                     errorMessage.classList.remove('hidden');
                     
                     // Reset button
@@ -264,9 +247,18 @@
                         form.style.animation = '';
                     }, 500);
                 }
-            }, 1000);
-        });
 
+            } catch (error) {
+                // Handle network errors (e.g., Go server is not running)
+                console.error('Network Error:', error);
+                errorText.textContent = 'Could not connect to the server. Is the Go backend running?';
+                errorMessage.classList.remove('hidden');
+
+                // Reset button
+                loginBtn.innerHTML = '<i class="ph-sign-in-fill mr-2"></i> Sign In';
+                loginBtn.disabled = false;
+            }
+        });
         // Handle forgot password link
         document.getElementById('forgotPasswordLink').addEventListener('click', function(e) {
             console.log('Forgot password link clicked');
@@ -277,7 +269,7 @@
         window.addEventListener('load', function() {
             const user = localStorage.getItem('pcHubUser');
             if (user) {
-                window.location.href = 'index.html';
+                window.location.href = 'dashboard.html';
             }
 
             // Check if user just registered (from URL parameter or localStorage flag)

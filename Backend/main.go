@@ -10,29 +10,105 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/rs/cors"
 )
 
-// --- Domain Models (structs) ---
+// --- Domain Models (structs for Normalized Tables) ---
 
-// Order represents the structure of a repair ticket, mapped to a MySQL table row.
-type Order struct {
-	ID               string    `json:"id" db:"id"`
-	CustomerName     string    `json:"customer_name" db:"customer_name"`
-	CustomerEmail    string    `json:"customer_email" db:"customer_email"`
-	CustomerPhone    string    `json:"customer_phone" db:"customer_phone"`
-	DeviceType       string    `json:"device_type" db:"device_type"`
-	DeviceModel      string    `json:"device_model" db:"device_model"`
-	Services         []string  `json:"services" db:"services"` // Will be JSON in DB
-	IssueDescription string    `json:"issue_description" db:"issue_description"`
-	Status           string    `json:"status" db:"status"`
-	TotalCost        float64   `json:"total_cost" db:"total_cost"`
-	CreatedBy        string    `json:"created_by" db:"created_by"`
-	CreatedAt        time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
-	LastUpdatedBy    string    `json:"last_updated_by" db:"last_updated_by"`
+// Customer represents the structure of Client Information
+type Customer struct {
+	ID      string `json:"customer_id" db:"customer_id"`
+	Name    string `json:"name" db:"name"`
+	Email   string `json:"email" db:"email"`
+	Phone   string `json:"phone" db:"phone"`
+	Address string `json:"address" db:"address"`
+	City    string `json:"city" db:"city"`
+	State   string `json:"state" db:"state"`
+	Zip     string `json:"zip" db:"zip"`
 }
 
-// OrderService handles order database operations
+// DeviceDetail represents the structure of Equipment Information
+type DeviceDetail struct {
+	ID              string    `json:"device_id" db:"device_id"`
+	Type            string    `json:"device_type" db:"type"`
+	Brand           string    `json:"device_brand" db:"brand"`
+	Model           string    `json:"device_model" db:"model"`
+	SerialNo        string    `json:"device_serial_no" db:"serial_no"`
+	Password        string    `json:"device_password" db:"password"`
+	Accessories     string    `json:"accessories_received" db:"accessories_received"` // String (can be JSON)
+	UnderWarranty   bool      `json:"under_warranty" db:"under_warranty"`
+	WarrantyNo      string    `json:"warranty_no" db:"warranty_no"`
+	WarrantyExpDate time.Time `json:"warranty_exp_date" db:"warranty_exp_date"`
+	CustomerID      string    `json:"customer_id" db:"customer_id"`
+}
+
+// LineItem represents a single service or part charged on a ticket
+type LineItem struct {
+	ID              string  `json:"item_id" db:"item_id"`
+	TicketID        string  `json:"ticket_id" db:"ticket_id"`
+	ServiceName     string  `json:"serviceName" db:"service_name"`
+	Rate            float64 `json:"rate" db:"rate"`
+	DiscountPercent float64 `json:"discountPercent" db:"discount_percent"`
+	FinalPrice      float64 `json:"finalPrice" db:"final_price"`
+}
+
+// TicketInput is the aggregate structure for receiving a new ticket via API
+type TicketInput struct {
+	// Customer Fields
+	CustomerName    string `json:"customerName"`
+	CustomerEmail   string `json:"customerEmail"`
+	CustomerPhone   string `json:"customerPhone"`
+	CustomerAddress string `json:"customerAddress"`
+	CustomerCity    string `json:"customerCity"`
+	CustomerState   string `json:"customerState"`
+	CustomerZip     string `json:"customerZip"`
+
+	// Device Fields
+	DeviceType          string `json:"deviceType"`
+	DeviceBrand         string `json:"deviceBrand"`
+	DeviceModelNo       string `json:"deviceModelNo"`
+	DeviceSerialNo      string `json:"deviceSerialNo"`
+	DevicePassword      string `json:"devicePassword"`
+	AccessoriesReceived string `json:"accessoriesReceived"`
+
+	// Ticket Core Fields
+	TicketType           string `json:"ticketType"`
+	AssignedEngineerID   string `json:"engineerId"`
+	IssueDescription     string `json:"issueDescription"`
+	DataBackup           string `json:"dataBackup"`
+	UnderWarranty        bool   `json:"underWarranty"`
+	WarrantyNo           string `json:"warrantyNo"`
+	WarrantyExpDate      string `json:"warrantyExpDate"`
+	ExpectedDeliveryDate string `json:"expectedDeliveryDate"`
+
+	// Financials
+	ServiceLineItems []LineItem `json:"serviceLineItems"`
+	TotalCost        float64    `json:"totalCost"`
+	CreatedBy        string     `json:"createdBy"`
+}
+
+// Ticket is a simplified structure for retrieving joined data (replaces old Order struct)
+type Ticket struct {
+	ID            string    `json:"id" db:"id"`
+	CustomerName  string    `json:"customer_name"`
+	CustomerPhone string    `json:"customer_phone"`
+	DeviceType    string    `json:"device_type"`
+	DeviceModel   string    `json:"device_model"`
+	Status        string    `json:"status"`
+	TotalCost     float64   `json:"total_cost"`
+	CreatedBy     string    `json:"created_by"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// DashboardMetrics holds the aggregated data for the operational dashboard.
+type DashboardMetrics struct {
+	TotalOpenOrders  int     `json:"total_open_orders"`
+	ReadyForDelivery int     `json:"ready_for_delivery"`
+	TotalRevenueYTD  float64 `json:"total_revenue_ytd"`
+}
+
+// OrderService handles ticket database operations across multiple tables
 type OrderService struct {
 	db *sql.DB
 }
@@ -41,118 +117,149 @@ func NewOrderService(database *sql.DB) *OrderService {
 	return &OrderService{db: database}
 }
 
-func (os *OrderService) CreateOrder(order *Order) error {
-	servicesJSON, err := json.Marshal(order.Services)
+// Helper function to generate IDs
+func generateID(prefix string) string {
+	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+}
+
+// CreateTicket performs a multi-table transaction to insert a new ticket
+func (os *OrderService) CreateTicket(input *TicketInput) error {
+	// 1. Start Transaction
+	tx, err := os.db.Begin()
 	if err != nil {
 		return err
 	}
-	
-	query := `
-		INSERT INTO orders (id, customer_name, customer_email, customer_phone, device_type, 
-		                   device_model, services, issue_description, status, total_cost, 
-		                   created_by, created_at, updated_at, last_updated_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)
-	`
-	
-	_, err = os.db.Exec(query, order.ID, order.CustomerName, order.CustomerEmail, 
-		order.CustomerPhone, order.DeviceType, order.DeviceModel, string(servicesJSON),
-		order.IssueDescription, order.Status, order.TotalCost, order.CreatedBy, order.CreatedBy)
-	
-	return err
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			log.Printf("Transaction panicked and rolled back: %v", r)
+		} else if err != nil {
+			tx.Rollback()
+			log.Printf("Transaction failed and rolled back: %v", err)
+		} else {
+			err = tx.Commit()
+			if err != nil {
+				log.Printf("Transaction commit failed: %v", err)
+			}
+		}
+	}()
+
+	// Generate IDs
+	customerID := generateID("CUST")
+	deviceID := generateID("DEV")
+	ticketID := generateID("TICKET")
+
+	// Handle date parsing
+	warrantyExpDate, _ := time.Parse("2006-01-02", input.WarrantyExpDate)
+	expectedDeliveryDate, _ := time.Parse("2006-01-02", input.ExpectedDeliveryDate)
+
+	// 2. Insert into CUSTOMERS
+	customerQuery := `
+        INSERT INTO customers (customer_id, name, email, phone, address, city, state, zip)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `
+	_, err = tx.Exec(customerQuery, customerID, input.CustomerName, input.CustomerEmail,
+		input.CustomerPhone, input.CustomerAddress, input.CustomerCity,
+		input.CustomerState, input.CustomerZip)
+	if err != nil {
+		return fmt.Errorf("failed to insert customer: %w", err)
+	}
+
+	// 3. Insert into DEVICE_DETAILS
+	deviceQuery := `
+        INSERT INTO device_details (device_id, customer_id, type, brand, model, serial_no, password, accessories_received, under_warranty, warranty_no, warranty_exp_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+	_, err = tx.Exec(deviceQuery, deviceID, customerID, input.DeviceType, input.DeviceBrand,
+		input.DeviceModelNo, input.DeviceSerialNo, input.DevicePassword,
+		input.AccessoriesReceived, input.UnderWarranty, input.WarrantyNo, warrantyExpDate)
+	if err != nil {
+		return fmt.Errorf("failed to insert device details: %w", err)
+	}
+
+	// 4. Insert into TICKETS
+	ticketQuery := `
+        INSERT INTO tickets (ticket_id, customer_id, device_id, assigned_engineer_id, ticket_type, 
+                             issue_description, data_backup_consent, expected_delivery_date, status, 
+                             total_cost, created_by, created_at, updated_at, last_updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)
+    `
+	_, err = tx.Exec(ticketQuery, ticketID, customerID, deviceID, input.AssignedEngineerID, input.TicketType,
+		input.IssueDescription, input.DataBackup, expectedDeliveryDate, "New Order",
+		input.TotalCost, input.CreatedBy, input.CreatedBy)
+	if err != nil {
+		return fmt.Errorf("failed to insert ticket: %w", err)
+	}
+
+	// 5. Insert into ORDER_LINE_ITEMS
+	lineItemQuery := `
+        INSERT INTO order_line_items (item_id, ticket_id, service_name, rate, discount_percent, final_price)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `
+	for i, item := range input.ServiceLineItems {
+		itemID := fmt.Sprintf("%s-ITEM-%d", ticketID, i+1)
+		_, err = tx.Exec(lineItemQuery, itemID, ticketID, item.ServiceName, item.Rate, item.DiscountPercent, item.FinalPrice)
+		if err != nil {
+			return fmt.Errorf("failed to insert line item %d: %w", i+1, err)
+		}
+	}
+
+	return nil
 }
 
-func (os *OrderService) GetAllOrders() ([]Order, error) {
+// GetAllOrders retrieves all tickets (simplified join for dashboard display)
+func (os *OrderService) GetAllOrders() ([]Ticket, error) {
 	query := `
-		SELECT id, customer_name, customer_email, customer_phone, device_type, device_model,
-		       services, issue_description, status, total_cost, created_by, created_at, 
-		       updated_at, COALESCE(last_updated_by, created_by)
-		FROM orders ORDER BY created_at DESC
-	`
-	
+        SELECT 
+			t.ticket_id, c.name, c.phone, d.type, d.model, 
+			t.status, t.total_cost, t.created_by, t.created_at, t.updated_at
+        FROM tickets t
+        JOIN customers c ON t.customer_id = c.customer_id
+        JOIN device_details d ON t.device_id = d.device_id
+        ORDER BY t.created_at DESC
+    `
+
 	rows, err := os.db.Query(query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
-	var orders []Order
+
+	var tickets []Ticket
 	for rows.Next() {
-		var order Order
-		var servicesJSON string
-		
-		err := rows.Scan(&order.ID, &order.CustomerName, &order.CustomerEmail,
-			&order.CustomerPhone, &order.DeviceType, &order.DeviceModel,
-			&servicesJSON, &order.IssueDescription, &order.Status, &order.TotalCost,
-			&order.CreatedBy, &order.CreatedAt, &order.UpdatedAt, &order.LastUpdatedBy)
-		
+		var t Ticket
+		var createdBySQL sql.NullString // Use NullString for nullable foreign keys
+
+		err := rows.Scan(
+			&t.ID, &t.CustomerName, &t.CustomerPhone, &t.DeviceType, &t.DeviceModel,
+			&t.Status, &t.TotalCost, &createdBySQL, &t.CreatedAt, &t.UpdatedAt)
+
 		if err != nil {
-			return nil, err
+			log.Printf("Error scanning ticket row: %v", err)
+			continue
 		}
-		
-		// Parse services JSON
-		if err := json.Unmarshal([]byte(servicesJSON), &order.Services); err != nil {
-			return nil, err
-		}
-		
-		orders = append(orders, order)
+		t.CreatedBy = createdBySQL.String
+
+		tickets = append(tickets, t)
 	}
-	
-	return orders, nil
+
+	return tickets, nil
 }
 
+// UpdateOrderStatus updates the status of a ticket
 func (os *OrderService) UpdateOrderStatus(orderID, status, updatedBy string) error {
-	query := `UPDATE orders SET status = ?, updated_at = NOW(), last_updated_by = ? WHERE id = ?`
+	query := `UPDATE tickets SET status = ?, updated_at = NOW(), last_updated_by = ? WHERE ticket_id = ?`
 	_, err := os.db.Exec(query, status, updatedBy, orderID)
 	return err
 }
 
-func (os *OrderService) GetOrdersByStatus(status string) ([]Order, error) {
-	query := `
-		SELECT id, customer_name, customer_email, customer_phone, device_type, device_model,
-		       services, issue_description, status, total_cost, created_by, created_at, 
-		       updated_at, COALESCE(last_updated_by, created_by)
-		FROM orders WHERE status = ? ORDER BY created_at DESC
-	`
-	
-	rows, err := os.db.Query(query, status)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	
-	var orders []Order
-	for rows.Next() {
-		var order Order
-		var servicesJSON string
-		
-		err := rows.Scan(&order.ID, &order.CustomerName, &order.CustomerEmail,
-			&order.CustomerPhone, &order.DeviceType, &order.DeviceModel,
-			&servicesJSON, &order.IssueDescription, &order.Status, &order.TotalCost,
-			&order.CreatedBy, &order.CreatedAt, &order.UpdatedAt, &order.LastUpdatedBy)
-		
-		if err != nil {
-			return nil, err
-		}
-		
-		// Parse services JSON
-		if err := json.Unmarshal([]byte(servicesJSON), &order.Services); err != nil {
-			return nil, err
-		}
-		
-		orders = append(orders, order)
-	}
-	
-	return orders, nil
+// GetOrdersByStatus is a placeholder and needs full implementation with joins for the new schema
+func (os *OrderService) GetOrdersByStatus(status string) ([]Ticket, error) {
+	// For now, return an empty slice and an error indicating it needs full implementation
+	return []Ticket{}, fmt.Errorf("GetOrdersByStatus not fully implemented for new schema. Use GetAllOrders for now.")
 }
 
-// DashboardMetrics holds the aggregated data for the operational dashboard.
-type DashboardMetrics struct {
-	TotalOpenOrders    int `json:"total_open_orders"`
-	ReadyForDelivery   int `json:"ready_for_delivery"`
-	TotalRevenueYTD    float64 `json:"total_revenue_ytd"`
-}
-
-// --- Global Database Connection ---
+// --- Global Database Connection and Setup ---
 
 var db *sql.DB
 
@@ -184,86 +291,144 @@ func getEnv(key, defaultValue string) string {
 
 func initDatabase() {
 	config := getDBConfig()
-	
+
 	// Create DSN (Data Source Name)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		config.User, config.Password, config.Host, config.Port, config.Database)
-	
+
 	var err error
 	db, err = sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	
+
 	// Test the connection
 	if err = db.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
-	
+
 	// Set connection pool settings
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(25)
 	db.SetConnMaxLifetime(5 * time.Minute)
-	
+
 	log.Println("Database connection pool initialized successfully.")
-	
+
 	// Create tables if they don't exist
 	createTables()
 }
 
+// createTables is updated to reflect the new normalized schema
 func createTables() {
-	// Users table
+	// 1. Users table (Staff/Engineer)
 	usersTable := `
-	CREATE TABLE IF NOT EXISTS users (
-		id VARCHAR(50) PRIMARY KEY,
-		full_name VARCHAR(255) NOT NULL,
-		email VARCHAR(255) UNIQUE NOT NULL,
-		phone VARCHAR(20) NOT NULL,
-		password VARCHAR(255) NOT NULL,
-		role VARCHAR(50) DEFAULT 'User',
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-		INDEX idx_email (email),
-		INDEX idx_phone (phone)
-	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
+    CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(50) PRIMARY KEY,
+        full_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        phone VARCHAR(20) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(50) DEFAULT 'User',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_email (email),
+        INDEX idx_phone (phone)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
-	// Orders/Tickets table
-	ordersTable := `
-	CREATE TABLE IF NOT EXISTS orders (
-		id VARCHAR(50) PRIMARY KEY,
-		customer_name VARCHAR(255) NOT NULL,
-		customer_email VARCHAR(255) NOT NULL,
-		customer_phone VARCHAR(20) NOT NULL,
-		device_type VARCHAR(255) NOT NULL,
-		device_model VARCHAR(255),
-		services JSON NOT NULL,
-		issue_description TEXT,
-		status ENUM('New Order', 'In Progress', 'Ready for Delivery', 'Collected') DEFAULT 'New Order',
-		total_cost DECIMAL(10,2) NOT NULL,
-		created_by VARCHAR(50),
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-		last_updated_by VARCHAR(50),
-		INDEX idx_status (status),
-		INDEX idx_customer_email (customer_email),
-		INDEX idx_created_at (created_at),
-		FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
-		FOREIGN KEY (last_updated_by) REFERENCES users(id) ON DELETE SET NULL
-	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
+	// 2. Customers table (Client Information)
+	customersTable := `
+    CREATE TABLE IF NOT EXISTS customers (
+        customer_id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255),
+        phone VARCHAR(20) NOT NULL,
+        address VARCHAR(255),
+        city VARCHAR(100),
+        state VARCHAR(100),
+        zip VARCHAR(10),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_customer_phone (phone)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 
-	// Execute table creation
+	// 3. Device Details table (Equipment Information)
+	deviceDetailsTable := `
+    CREATE TABLE IF NOT EXISTS device_details (
+        device_id VARCHAR(50) PRIMARY KEY,
+        customer_id VARCHAR(50) NOT NULL,
+        type VARCHAR(255) NOT NULL,
+        brand VARCHAR(255) NOT NULL,
+        model VARCHAR(255),
+        serial_no VARCHAR(255),
+        password VARCHAR(255),
+        accessories_received TEXT,
+        under_warranty BOOLEAN NOT NULL DEFAULT FALSE,
+        warranty_no VARCHAR(255),
+        warranty_exp_date DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
+
+	// 4. Tickets table (Core Job and Status - Replaces old 'orders' table)
+	ticketsTable := `
+    CREATE TABLE IF NOT EXISTS tickets (
+        ticket_id VARCHAR(50) PRIMARY KEY,
+        customer_id VARCHAR(50) NOT NULL,
+        device_id VARCHAR(50) NOT NULL,
+        assigned_engineer_id VARCHAR(50),
+        ticket_type ENUM('Diagnostics Call', 'Service Call') NOT NULL,
+        issue_description TEXT NOT NULL,
+        data_backup_consent ENUM('backed_up', 'no_backup_no_service', 'request_backup') NOT NULL,
+        expected_delivery_date DATE,
+        status ENUM('New Order', 'Diagnostics', 'In Progress', 'Ready for Delivery', 'Collected') DEFAULT 'New Order',
+        total_cost DECIMAL(10,2) NOT NULL,
+        created_by VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        last_updated_by VARCHAR(50),
+        
+        INDEX idx_ticket_status (status),
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+        FOREIGN KEY (device_id) REFERENCES device_details(device_id) ON DELETE CASCADE,
+        FOREIGN KEY (assigned_engineer_id) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (last_updated_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
+
+	// 5. Order Line Items table (Billing Items)
+	orderLineItemsTable := `
+    CREATE TABLE IF NOT EXISTS order_line_items (
+        item_id VARCHAR(50) PRIMARY KEY,
+        ticket_id VARCHAR(50) NOT NULL,
+        service_name VARCHAR(255) NOT NULL,
+        rate DECIMAL(10,2) NOT NULL,
+        discount_percent DECIMAL(5,2) DEFAULT 0.00,
+        final_price DECIMAL(10,2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (ticket_id) REFERENCES tickets(ticket_id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
+
+	// Execute table creation in order
 	if _, err := db.Exec(usersTable); err != nil {
 		log.Fatalf("Failed to create users table: %v", err)
 	}
-	
-	if _, err := db.Exec(ordersTable); err != nil {
-		log.Fatalf("Failed to create orders table: %v", err)
+	if _, err := db.Exec(customersTable); err != nil {
+		log.Fatalf("Failed to create customers table: %v", err)
 	}
-	
+	if _, err := db.Exec(deviceDetailsTable); err != nil {
+		log.Fatalf("Failed to create device_details table: %v", err)
+	}
+	if _, err := db.Exec(ticketsTable); err != nil {
+		log.Fatalf("Failed to create tickets table: %v", err)
+	}
+	if _, err := db.Exec(orderLineItemsTable); err != nil {
+		log.Fatalf("Failed to create order_line_items table: %v", err)
+	}
+
 	log.Println("Database tables created/verified successfully.")
 }
 
-// --- Handler Functions ---
+// --- User Service (Unchanged) ---
 
 // User represents a user account in the system
 type User struct {
@@ -288,10 +453,10 @@ func NewUserService(database *sql.DB) *UserService {
 
 func (us *UserService) CreateUser(user *User) error {
 	query := `
-		INSERT INTO users (id, full_name, email, phone, password, role, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
-	`
-	
+        INSERT INTO users (id, full_name, email, phone, password, role, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+    `
+
 	_, err := us.db.Exec(query, user.ID, user.FullName, user.Email, user.Phone, user.Password, user.Role)
 	return err
 }
@@ -299,38 +464,38 @@ func (us *UserService) CreateUser(user *User) error {
 func (us *UserService) GetUserByEmail(email string) (*User, error) {
 	user := &User{}
 	query := `
-		SELECT id, full_name, email, phone, password, role, created_at, updated_at
-		FROM users WHERE email = ?
-	`
-	
+        SELECT id, full_name, email, phone, password, role, created_at, updated_at
+        FROM users WHERE email = ?
+    `
+
 	err := us.db.QueryRow(query, email).Scan(
 		&user.ID, &user.FullName, &user.Email, &user.Phone,
 		&user.Password, &user.Role, &user.CreatedAt, &user.UpdatedAt,
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return user, nil
 }
 
 func (us *UserService) GetUserByEmailAndPhone(email, phone string) (*User, error) {
 	user := &User{}
 	query := `
-		SELECT id, full_name, email, phone, password, role, created_at, updated_at
-		FROM users WHERE email = ? AND phone = ?
-	`
-	
+        SELECT id, full_name, email, phone, password, role, created_at, updated_at
+        FROM users WHERE email = ? AND phone = ?
+    `
+
 	err := us.db.QueryRow(query, email, phone).Scan(
 		&user.ID, &user.FullName, &user.Email, &user.Phone,
 		&user.Password, &user.Role, &user.CreatedAt, &user.UpdatedAt,
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return user, nil
 }
 
@@ -347,20 +512,22 @@ func (us *UserService) EmailExists(email string) (bool, error) {
 	return count > 0, err
 }
 
+// --- Handler Functions ---
+
+// Global service instances
+var userService *UserService
+var orderService *OrderService
+
 // HealthCheckHandler provides a simple status check.
 func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "PC Repair Hub API is operational")
 }
 
-// Global service instances
-var userService *UserService
-var orderService *OrderService
-
 // RegisterHandler handles user registration
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	if r.Method != "POST" {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		return
@@ -386,7 +553,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	
+
 	if exists {
 		http.Error(w, "Email already registered", http.StatusConflict)
 		return
@@ -411,16 +578,16 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("User %s registered with email %s.", newUser.ID, newUser.Email)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
-		"message": "User registered successfully", 
+		"message": "User registered successfully",
 		"user_id": newUser.ID,
-		"email": newUser.Email,
+		"email":   newUser.Email,
 	})
 }
 
 // LoginHandler handles user authentication
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	if r.Method != "POST" {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		return
@@ -443,22 +610,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Demo admin account (hardcoded)
-	if loginRequest.Email == "admin@pchub.com" && loginRequest.Password == "admin123" {
-		log.Printf("Admin user %s logged in successfully.", loginRequest.Email)
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"message": "Login successful",
-			"user": map[string]string{
-				"email": loginRequest.Email,
-				"name":  "Admin User",
-				"role":  "Administrator",
-			},
-			"token": "demo-jwt-token", // In real app, generate actual JWT
-		})
-		return
-	}
-
 	// Check database for registered users
 	user, err := userService.GetUserByEmail(loginRequest.Email)
 	if err != nil {
@@ -468,14 +619,13 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid email or password", http.StatusUnauthorized)
 			return
 		}
-		
+
 		log.Printf("Error retrieving user: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	// TODO: Use bcrypt to compare hashed password
-	// err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password))
 	// For now, direct comparison (NOT SECURE - use bcrypt in production)
 	if user.Password != loginRequest.Password {
 		time.Sleep(100 * time.Millisecond) // Prevent timing attacks
@@ -502,10 +652,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 func GetDashboardMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// --- Concurrency / Scale Feature ---
-	// This function shows how Go handles multiple database queries concurrently
-	// using goroutines, which is crucial for high-speed dashboard loading.
-
 	type result struct {
 		Metric string
 		Count  int
@@ -513,25 +659,24 @@ func GetDashboardMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := make(chan result)
-	
-	// Goroutine 1: Get Total Open Orders
+
+	// Goroutine 1: Get Total Open Orders (TICKETS table)
 	go func() {
-		// Mocked DB query: SELECT COUNT(*) FROM orders WHERE status NOT IN ('Ready', 'Collected')
-		// In a real app: row := db.QueryRow(query)
-		time.Sleep(10 * time.Millisecond) // Simulate DB latency
+		// This should query the 'tickets' table: SELECT COUNT(*) FROM tickets WHERE status NOT IN ('Ready for Delivery', 'Collected')
+		time.Sleep(10 * time.Millisecond)
 		results <- result{Metric: "OpenOrders", Count: 150} // Mocked result
 	}()
 
-	// Goroutine 2: Get Ready for Delivery Count
+	// Goroutine 2: Get Ready for Delivery Count (TICKETS table)
 	go func() {
-		// Mocked DB query: SELECT COUNT(*) FROM orders WHERE status = 'Ready for Delivery'
+		// This should query the 'tickets' table: SELECT COUNT(*) FROM tickets WHERE status = 'Ready for Delivery'
 		time.Sleep(5 * time.Millisecond)
 		results <- result{Metric: "ReadyCount", Count: 35} // Mocked result
 	}()
 
-	// Goroutine 3: Calculate YTD Revenue
+	// Goroutine 3: Calculate YTD Revenue (TICKETS table)
 	go func() {
-		// Mocked DB query: SELECT SUM(estimated_cost) FROM orders WHERE status = 'Collected' AND YEAR(created_at) = YEAR(CURDATE())
+		// This should query the 'tickets' table: SELECT SUM(total_cost) FROM tickets WHERE status = 'Collected' AND YEAR(created_at) = YEAR(CURDATE())
 		time.Sleep(20 * time.Millisecond)
 		results <- result{Metric: "Revenue", Value: 28550.75} // Mocked result
 	}()
@@ -557,52 +702,53 @@ func GetDashboardMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(metrics)
 }
 
-// CreateOrderHandler handles the submission of a new service order.
+// CreateOrderHandler handles the submission of a new service order (now a multi-table insert).
 func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	if r.Method != "POST" {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var newOrder Order
-	err := json.NewDecoder(r.Body).Decode(&newOrder)
+	var input TicketInput
+	err := json.NewDecoder(r.Body).Decode(&input)
 	if err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Invalid request payload: %v", err), http.StatusBadRequest)
 		return
 	}
 
 	// Basic validation
-	if newOrder.CustomerName == "" || newOrder.CustomerEmail == "" || newOrder.CustomerPhone == "" {
-		http.Error(w, "Customer information is required", http.StatusBadRequest)
+	if input.CustomerName == "" || input.CustomerPhone == "" || input.IssueDescription == "" {
+		http.Error(w, "Customer name, phone, and issue description are required", http.StatusBadRequest)
 		return
 	}
 
-	// Set required fields for the new order
-	newOrder.ID = fmt.Sprintf("ORD-%d", time.Now().UnixNano())
-	newOrder.Status = "New Order"
+	// Set created by for the transaction (Default to Admin if not provided by token/session)
+	if input.CreatedBy == "" {
+		input.CreatedBy = "ADMIN-001"
+	}
 
-	// Create order in database
-	err = orderService.CreateOrder(&newOrder)
+	// Create ticket in database using the transactional function
+	err = orderService.CreateTicket(&input)
 	if err != nil {
-		log.Printf("Error creating order: %v", err)
-		http.Error(w, "Failed to create order", http.StatusInternalServerError)
+		log.Printf("Error creating ticket: %v", err)
+		http.Error(w, "Failed to create ticket: Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("Order %s created for %s.", newOrder.ID, newOrder.CustomerName)
+	log.Printf("Ticket created for %s.", input.CustomerName)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Order created successfully", 
-		"order_id": newOrder.ID,
+		"message":       "Ticket created successfully via normalized schema",
+		"customer_name": input.CustomerName,
 	})
 }
 
 // GetOrdersHandler retrieves all orders
 func GetOrdersHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	if r.Method != "GET" {
 		http.Error(w, "Only GET method is allowed", http.StatusMethodNotAllowed)
 		return
@@ -621,14 +767,14 @@ func GetOrdersHandler(w http.ResponseWriter, r *http.Request) {
 // UpdateOrderStatusHandler updates the status of an order
 func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	if r.Method != "PUT" {
 		http.Error(w, "Only PUT method is allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var updateRequest struct {
-		OrderID   string `json:"order_id"`
+		OrderID   string `json:"order_id"` // Corresponds to ticket_id
 		Status    string `json:"status"`
 		UpdatedBy string `json:"updated_by"`
 	}
@@ -646,7 +792,7 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate status values
-	validStatuses := []string{"New Order", "In Progress", "Ready for Delivery", "Collected"}
+	validStatuses := []string{"New Order", "Diagnostics", "In Progress", "Ready for Delivery", "Collected"}
 	isValidStatus := false
 	for _, status := range validStatuses {
 		if updateRequest.Status == status {
@@ -654,7 +800,7 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	
+
 	if !isValidStatus {
 		http.Error(w, "Invalid status value", http.StatusBadRequest)
 		return
@@ -676,7 +822,7 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 // ForgotPasswordHandler handles password reset requests
 func ForgotPasswordHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	if r.Method != "POST" {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		return
@@ -758,20 +904,9 @@ func main() {
 	userService = NewUserService(db)
 	orderService = NewOrderService(db)
 
-	// Enable CORS for frontend integration
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		
-		// Handle other requests normally
-		http.DefaultServeMux.ServeHTTP(w, r)
-	})
+	// --- CONFIGURE CORS MIDDLEWARE ---
+	corsHandler := cors.Default().Handler(http.DefaultServeMux)
+	// ---------------------------------
 
 	// Define the API routes
 	http.HandleFunc("/api/v1/health", HealthCheckHandler)
@@ -788,13 +923,12 @@ func main() {
 	if port[0] != ':' {
 		port = ":" + port
 	}
-	
+
 	log.Printf("PC Repair Hub Backend API starting on http://localhost%s", port)
 	log.Printf("Database: %s", getDBConfig().Database)
-	
-	// ListenAndServe uses a new goroutine for every incoming request, 
-	// leveraging Go's highly efficient concurrency model (goroutines) to handle scale.
-	if err := http.ListenAndServe(port, nil); err != nil {
+
+	// ListenAndServe uses the CORS-wrapped handler (corsHandler)
+	if err := http.ListenAndServe(port, corsHandler); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
